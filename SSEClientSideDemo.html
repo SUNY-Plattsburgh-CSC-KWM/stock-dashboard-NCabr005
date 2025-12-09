@@ -1,8 +1,16 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>SSE Demo</title>
+    <title>Stock Dashboard</title>
     <meta charset="utf-8" />
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 20px; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+      th { background-color: #f2f2f2; }
+      .sparkline { width: 150px; height: 40px; }
+    </style>
   </head>
   <body>
     <div id="app"></div>
@@ -15,25 +23,257 @@
       const useEffect = React.useEffect;
       
       function App() {
-	  const [time, setTime] = useState('');
-	  useEffect(() => {
-              const eventSource = new EventSource('http://localhost:5000/events');
-              eventSource.onmessage = (event) => {
-		  const data = JSON.parse(event.data);
-		  setTime(data.time);
-              };
-              return () => eventSource.close();
-	  }, []);
-	  return (
-		  <div>
-		  <h1>Server-Sent Events Demo</h1>
-		  <p>Current Time: {time}</p>
-		  </div>
-	  );
+        
+        // JSON state objects (used by updateStockData & table)
+        const [ibmData, setIbm] = useState({
+          ticker: "IBM", 
+          name: "International Business Machines", 
+          price: 0, 
+          volume: 0
+        });
+        
+        const [amznData, setAmzn] = useState({
+          ticker: "AMZN", 
+          name: "Amazon", 
+          price: 0, 
+          volume: 0
+        });
+        
+        const [dowData, setDow] = useState({
+          ticker: "DOW", 
+          name: "Dow Jones Industrial Average", 
+          price: 0, 
+          volume: 0
+        });
+        
+        const [nasdaqData, setNasdaq] = useState({
+          ticker: "NASDAQ", 
+          name: "Nasdaq Composite", 
+          price: 0, 
+          volume: 0
+        });
+        
+        const [bitcoinData, setBitcoin] = useState({
+          ticker: "BITCOIN", 
+          name: "Bitcoin", 
+          price: 0, 
+          volume: 0
+        });
+        
+        // Smart event handler (called from useEffect)
+        const updateStockData = (data) => {
+          if (data.ticker === 'IBM') {
+            setIbm(data);
+          } else if (data.ticker === 'AMZN') {
+            setAmzn(data);
+          } else if (data.ticker === 'DOW') {
+            setDow(data);
+          } else if (data.ticker === 'NASDAQ') {
+            setNasdaq(data);
+          } else if (data.ticker === 'BITCOIN') {
+            setBitcoin(data);
+          }
+        };
+        
+        // Price queue factory (used by priceQueues & drawSparkline)
+        const createPriceQueue = (maxSize = 50) => {
+          const items = [];
+          return {
+            add: (price) => {
+              items.push(price);
+              if (items.length > maxSize) {
+                items.shift();
+              }
+            },
+            getItems: () => items
+          };
+        };
+        
+        const [priceQueues] = useState({
+          IBM: createPriceQueue(),
+          AMZN: createPriceQueue(),
+          DOW: createPriceQueue(),
+          NASDAQ: createPriceQueue(),
+          BITCOIN: createPriceQueue()
+        });
+        
+        // D3 sparkline renderer (called from useEffect)
+        const drawSparkline = (ticker, prices) => {
+          const container = d3.select(`#sparkline-${ticker}`);
+          container.selectAll("*").remove();
+          
+          if (prices.length < 2) {
+            container.text("Building chart...");
+            return;
+          }
+          
+          const width = 150, height = 40;
+          const svg = container.append("svg")
+            .attr("width", width)
+            .attr("height", height);
+          
+          const xScale = d3.scaleLinear()
+            .domain([0, prices.length - 1])
+            .range([5, width - 5]);
+          
+          const yScale = d3.scaleLinear()
+            .domain(d3.extent(prices))
+            .range([height - 5, 5]);
+          
+          const line = d3.line()
+            .x((d, i) => xScale(i))
+            .y(d => yScale(d));
+          
+          svg.append("path")
+            .datum(prices)
+            .attr("fill", "none")
+            .attr("stroke", "steelblue")
+            .attr("stroke-width", 2)
+            .attr("d", line);
+        };
+        
+        // SERVER CONNECTION: Coordinates all hints together
+        useEffect(() => {
+          ['IBM', 'AMZN', 'DOW', 'NASDAQ', 'BITCOIN'].forEach(ticker => {
+            drawSparkline(ticker, []);
+          });
+          
+          const eventSource = new EventSource('http://localhost:31415/stocks');
+          
+          eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            console.log('Stock data received:', data);
+            
+            priceQueues[data.ticker].add(data.price);
+            updateStockData(data);
+            drawSparkline(data.ticker, priceQueues[data.ticker].getItems());
+          };
+          
+          return () => eventSource.close();
+        }, []);
+        
+        // Table with unique sparkline DIVs (targets for drawSparkline)
+        return (
+          <div>
+            <h1>Welcome To Wall St</h1>
+            
+            {/* Bull and Bear with Wall Street in center */}
+            <div style={{display: "flex", alignItems: "center", justifyContent: "center", gap: "20px", marginBottom: "20px"}}>
+              {/* Bull Market Box */}
+              <div style={{
+                width: "150px", 
+                height: "150px", 
+                backgroundColor: "#4CAF50", 
+                borderRadius: "10px", 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center", 
+                color: "white",
+                fontSize: "18px",
+                fontWeight: "bold",
+                textAlign: "center",
+                boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                flexDirection: "column"
+              }}>
+                <div style={{fontSize: "30px"}}>🐂</div>
+                <div>BULL</div>
+                <div style={{fontSize: "20px"}}>📈</div>
+              </div>
+              
+              {/* Wall Street image in center */}
+              <img 
+                src="https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=400&h=200&fit=crop" 
+                alt="Wall Street" 
+                width="400" 
+                height="200" 
+                style={{borderRadius: "10px"}}
+              />
+              
+              {/* Bear Market Box */}
+              <div style={{
+                width: "150px", 
+                height: "150px", 
+                backgroundColor: "#F44336", 
+                borderRadius: "10px", 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center", 
+                color: "white",
+                fontSize: "18px",
+                fontWeight: "bold",
+                textAlign: "center",
+                boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                flexDirection: "column"
+              }}>
+                <div style={{fontSize: "30px"}}>🐻</div>
+                <div>BEAR</div>
+                <div style={{fontSize: "20px"}}>📉</div>
+              </div>
+            </div>
+            
+            <h2>Live Stock Dashboard</h2>
+            <p>Nicks Top 5 stocks!! Are you a Bull Or Bear? </p>
+            
+            {/* Stock rows display HINT #1 data, provide HINT #4 targets */}
+            <table>
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th>Company Name</th>
+                  <th>Price</th>
+                  <th>Volume</th>
+                  <th>Price Trend</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>{ibmData.ticker}</strong></td>
+                  <td>{ibmData.name}</td>
+                  <td>${ibmData.price}</td>
+                  <td>{ibmData.volume}</td>
+                  <td><div id="sparkline-IBM" className="sparkline">Chart will appear here</div></td>
+                </tr>
+                
+                <tr>
+                  <td><strong>{amznData.ticker}</strong></td>
+                  <td>{amznData.name}</td>
+                  <td>${amznData.price}</td>
+                  <td>{amznData.volume}</td>
+                  <td><div id="sparkline-AMZN" className="sparkline">Chart will appear here</div></td>
+                </tr>
+                
+                <tr>
+                  <td><strong>{dowData.ticker}</strong></td>
+                  <td>{dowData.name}</td>
+                  <td>${dowData.price}</td>
+                  <td>{dowData.volume}</td>
+                  <td><div id="sparkline-DOW" className="sparkline">Chart will appear here</div></td>
+                </tr>
+                
+                {/* NASDAQ Row */}
+                <tr>
+                  <td><strong>{nasdaqData.ticker}</strong></td>
+                  <td>{nasdaqData.name}</td>
+                  <td>${nasdaqData.price}</td>
+                  <td>{nasdaqData.volume}</td>
+                  <td><div id="sparkline-NASDAQ" className="sparkline">Chart will appear here</div></td>
+                </tr>
+                
+                <tr>
+                  <td><strong>{bitcoinData.ticker}</strong></td>
+                  <td>{bitcoinData.name}</td>
+                  <td>${bitcoinData.price}</td>
+                  <td>{bitcoinData.volume}</td>
+                  <td><div id="sparkline-BITCOIN" className="sparkline">Chart will appear here</div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        );
       }
-      ReactDOM.render(
-              <App />,
-	  document.getElementById('app'));
+      
+      // Render the App component into the HTML page
+      ReactDOM.render(<App />, document.getElementById('app'));
     </script>
   </body>
 </html>

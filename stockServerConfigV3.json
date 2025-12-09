@@ -1,7 +1,7 @@
 {
     "hostname": "127.0.0.1",
     "port": "31415",
-    "stocks": ["IBM", "AMZN", "DOW", "NASDAQ"],
+    "stocks": ["IBM", "AMZN", "DOW", "NASDAQ", "BITCOIN"],
     "IBM":
     {
 	"initPrice": "140",
@@ -36,6 +36,15 @@
 	"fullName": "Nasdaq Composite",
 	"baseVolume": "1000",
 	"volumeRate": "1.5",
+	"volumeTrend": "random"
+    },
+    "BITCOIN":
+    {
+	"initPrice": "45000",
+	"rate": "0.05",
+	"fullName": "Bitcoin",
+	"baseVolume": "500",
+	"volumeRate": "2.0",
 	"volumeTrend": "random"
     }
 }
